@@ -1,0 +1,90 @@
+# Databricks Asset Bundle: deploys the whole project (pipeline + orchestration job) from code.
+#
+#   databricks bundle validate -t dev --var "contact=Your Name you@yourdomain.com"
+#   databricks bundle deploy   -t dev --var "contact=Your Name you@yourdomain.com"
+#   databricks bundle run      -t dev refresh_job --var "contact=Your Name you@yourdomain.com"
+#
+# Set `workspace.host` below to your workspace URL (or log in with `databricks auth login` and remove it).
+
+bundle:
+  name: rearc_data_quest
+
+variables:
+  catalog:
+    description: Unity Catalog catalog for the schema, volume and tables.
+    default: workspace
+  schema:
+    description: Schema that holds the volume and the Bronze/Silver/Gold tables.
+    default: rearc_quest
+  volume:
+    description: Volume that holds the raw landed files.
+    default: raw
+  contact:
+    description: Name and email sent in the BLS User-Agent header (required by BLS policy). No default on purpose.
+
+resources:
+  pipelines:
+    # The pipeline: runs bronze.py, silver.py and gold.sql together as one Spark Declarative Pipeline.
+    data_quest_pipeline:
+      name: rearc-data-quest-pipeline
+      catalog: ${var.catalog}
+      schema: ${var.schema}
+      serverless: true
+      # Triggered (run on demand), not running all the time.
+      continuous: false
+      # Read by bronze.py / silver.py via spark.conf (they fall back to the same default path if unset).
+      configuration:
+        raw_path: /Volumes/${var.catalog}/${var.schema}/${var.volume}
+      libraries:
+        - file:
+            path: pipeline/bronze.py
+        - file:
+            path: pipeline/silver.py
+        - file:
+            path: pipeline/gold.sql
+
+  # The job: runs the three steps in order. Each task starts only after the one before it succeeds.
+  jobs:
+    refresh_job:
+      name: rearc-data-quest-refresh
+      max_concurrent_runs: 1   # the ingestion manifest is not safe for concurrent runs
+      schedule:
+        quartz_cron_expression: "0 0 6 * * ?"   # daily at 06:00
+        timezone_id: America/New_York
+        pause_status: PAUSED                     # unpause deliberately once deployed
+      tasks:
+        # Step 1: the ingestion notebook syncs BLS and population data into the Volume.
+        # It needs the BLS contact value (name + email), passed in as a bundle variable.
+        - task_key: ingest
+          notebook_task:
+            notebook_path: 01_ingest_sources.py
+            base_parameters:
+              catalog: ${var.catalog}
+              schema: ${var.schema}
+              volume: ${var.volume}
+              contact: ${var.contact}
+
+        # Step 2: the pipeline builds Bronze, Silver and Gold from the files ingestion landed.
+        - task_key: transform
+          depends_on:
+            - task_key: ingest
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.data_quest_pipeline.id}
+
+        # Data-quality gate: fails the job if the PySpark and SQL implementations of the Gold logic disagree.
+        - task_key: verify_gold
+          depends_on:
+            - task_key: transform
+          notebook_task:
+            notebook_path: notebooks/gold_pyspark_check.py
+            base_parameters:
+              catalog: ${var.catalog}
+              schema: ${var.schema}
+
+# Deployment targets. `dev` is the only one defined; development mode prefixes resource names with the deploying user.
+targets:
+  dev:
+    mode: development
+    default: true
+    workspace:
+      host: https://<your-workspace>.cloud.databricks.com

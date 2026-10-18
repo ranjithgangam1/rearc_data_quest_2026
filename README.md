@@ -5,6 +5,8 @@ modeled as a Spark Declarative Pipeline (Bronze → Silver → Gold).
 
 See [`PROCESS.md`](PROCESS.md) for the architecture, trade-offs, retrospective and AI-usage statement.
 
+Screenshots from Databricks and the exported verification report are in [`output/`](output/).
+
 ## Repository layout
 
 | Path | Purpose |
@@ -16,6 +18,7 @@ See [`PROCESS.md`](PROCESS.md) for the architecture, trade-offs, retrospective a
 | `notebooks/gold_pyspark_check.py` | Notebook. PySpark alternative for the Gold logic, with a row-for-row cross-check against the SQL tables. |
 | `notebooks/verification_report.py` | Notebook. Reproduces the verification numbers (counts, duplicates, Gold results, grants) with a PASS/FAIL summary. |
 | `diagrams/` | Data flow and data model diagrams (PNG and SVG), used in `PROCESS.md`. |
+| `output/` | Evidence from my Databricks run: `verification_report.html` (exported results of the report notebook) and `screenshots/` of the pipeline and tables. |
 | `PROCESS.md` | Design decisions, trade-offs, retrospective, AI usage. |
 | `databricks.yml` | Databricks Asset Bundle: the pipeline plus a job that runs ingest → pipeline → Gold verification. |
 | `bonus/access_controls.sql` | Read-only Unity Catalog grants for an analyst group on the Gold tables only. |

@@ -16,6 +16,9 @@ Rearc Data Quest (Databricks edition): BLS productivity time series + DataUSA po
 ├── notebooks/gold_pyspark_check.py   # PySpark alternative for the Gold logic + cross-check
 ├── notebooks/verification_report.py  # reproduces every check/number in this document; export with results
 ├── diagrams/                     # data flow and data model diagrams (PNG + SVG)
+├── output/                       # evidence from my Databricks run
+│   ├── verification_report.html  # exported results of notebooks/verification_report.py (19 checks)
+│   └── screenshots/              # screenshots of the pipeline and tables in Databricks
 └── bonus/
     ├── genie_space_setup.md      # Genie space configuration (instructions, examples, sample questions)
     └── access_controls.sql       # read-only analyst grants on the Gold layer
@@ -109,11 +112,27 @@ All diagrams are in the `diagrams/` folder. The PNG files are for reading and th
 | `diagrams/silver_lookup_data_model` | The Silver series table and its five code lookups |
 | `diagrams/gold_data_model` | The three Gold tables and how they relate |
 
+### Screenshots from my Databricks run
+
+These are screenshots of the pipeline's results in my Databricks workspace. They are in `output/screenshots/`.
+
+| File | What it shows |
+|---|---|
+| [`databricks_pipeline_graph.png`](output/screenshots/databricks_pipeline_graph.png) | The pipeline graph in Databricks: ten rows (nine BLS files and the population file), each running from the raw Volume through a Bronze and a Silver table into the three Gold tables, with every table showing a green check. Databricks shortens the table names here; the full names are in the Unity Catalog screenshots below |
+| [`uc_tables_part1.png`](output/screenshots/uc_tables_part1.png) | Unity Catalog view of the `rearc_quest` schema: 23 tables in total, this image lists the first 20 (Bronze, Gold and most of Silver) |
+| [`uc_tables_part2.png`](output/screenshots/uc_tables_part2.png) | The last three tables: `silver_bls_pr_sector`, `silver_bls_pr_series` and `silver_population` |
+| [`uc_volume_raw.png`](output/screenshots/uc_volume_raw.png) | The raw Volume `/Volumes/workspace/rearc_quest/raw` with its `_state`, `bls` and `population` folders, where ingestion lands the data |
+| [`bundle_run.png`](output/screenshots/bundle_run.png) | The Asset Bundle job run: `ingest`, `transform` and `verify_gold` all succeeded |
+| [`genie_agent_setup.png`](output/screenshots/genie_agent_setup.png) | The Genie space "US Productivity and Population Explorer": description with capabilities and limitations, the six sample questions, and the configuration panel |
+| [`genie_agent_response.png`](output/screenshots/genie_agent_response.png) | Genie's answer to the manufacturing hours vs population question, with a chart that shows every year since 2013 and leaves gaps in the population line where there is no record |
+
+The exported results of the report notebook are in [`output/verification_report.html`](output/verification_report.html).
+
 ### Results and how I verified them
 
 `notebooks/verification_report.py` reproduces every number and check below in one notebook (row counts, duplicate
 analysis, Gold results, population years across layers, grants) and ends with a PASS/FAIL summary. I attach its
-exported output as `verification_report.html` (19 checks, all passing).
+exported output as `output/verification_report.html` (19 checks, all passing).
 
 | Question | Result | Verification |
 |---|---|---|
@@ -287,9 +306,11 @@ configuration text is in `bonus/genie_space_setup.md`.
     tightened the rule to also rule out claims of independence or no relationship.
   - *Final result.* After the example change, the chart shows 2020 with its −7.0% bar, the population line breaks
     where there is no record (2020, 2025, 2026), and every figure in the text matches my Gold table. One weakness
-    remains: the closing sentence still says the series changes "independently of population levels," a claim nobody
-    computed. I treat that as a known limit of natural-language answers. Instructions reduce unsupported statements but
-    do not remove them, so a real deployment would keep a set of benchmark questions and review the answers.
+    remains, visible in the screenshot: the closing paragraph still says "no apparent correlation exists" and that
+    hours "varied independently of population growth," claims nobody computed. It also says population "continued its
+    steady upward trend" through the 2020 decline, although the population record for 2020 is missing. I treat that as
+    a known limit of natural-language answers. Instructions reduce unsupported statements but do not remove them, so
+    a real deployment would keep a set of benchmark questions and review the answers.
 
 **What I'd add next for a real client:** a benchmark set of questions with expected SQL that is re-run after every
 instruction change, and regular review of the questions users actually ask. Access to the space and its tables is
@@ -371,10 +392,8 @@ cross-check notebook, the Genie space configuration text, and the first drafts o
 - **Made the final calls** on scope (SQL as the primary Gold implementation, adding the Genie space) and on what to
   keep or change in the generated code.
 
-**Code review.** Once everything worked, I went through the files one by one with Claude (the ingestion notebook,
-Bronze, Silver, the Gold SQL and the two notebooks), asking it to explain the parts I wanted to understand. That review
-led to three decisions. I documented the removed-file behavior as a trade-off to confirm with a real client instead of
-choosing a rule myself. I had comments added to every file, and checked that only comments changed. And I made the BLS
-contact requirement explicit in the notebook, its error message and the README. The code changes themselves were made
-by Claude in response to the problems I found and the requests I made; where I found weaknesses, I listed them in
-section 2 instead of hiding them.
+**Code review.** Once everything worked, I reviewed the code again. That review led to three decisions. I documented
+the removed-file behavior as a trade-off to confirm with a real client instead of choosing a rule myself. I had
+comments added to every file, and checked that only comments changed. And I made the BLS contact requirement explicit
+in the notebook, its error message and the README. The code changes themselves were made by Claude in response to the
+problems I found and the requests I made; where I found weaknesses, I listed them in section 2 instead of hiding them.
